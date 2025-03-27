@@ -1,73 +1,103 @@
-import requests
+#!/usr/bin/env python3
 import pandas as pd
-import numpy as np
-from bs4 import BeautifulSoup
-import smtplib
-import schedule
-from selenium import webdriver
 import time
-from selenium.webdriver.support.select import Select
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
-from selenium import webdriver
-#Load the webdriver and get the ur;4
-from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
+from webdriver_manager.chrome import ChromeDriverManager
 
-# Define the path to chromedriver
-service = Service(r'C:\\Users\\nalla\\OneDrive\\Desktop\\chromedriver.exe')
-url1 = "https://www.linkedin.com/jobs/search?keywords=Software%20Developer&location=Bengaluru&geoId=105214831&distance=50&f_JT=I&f_PP=105214831&f_TPR=&position=1&pageNum=0"
-# Create the WebDriver instance
-driver = webdriver.Chrome(service=service)
+# Set up Chrome options for headless execution on a server
+chrome_options = Options()
+chrome_options.add_argument("--headless")  # Run without UI
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--disable-3d-apis")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
 
+# Use webdriver_manager to automatically download and set up ChromeDriver
+service = Service(ChromeDriverManager().install())
+
+# LinkedIn Job Search URL
+url = (
+    "https://www.linkedin.com/jobs/search?keywords=Software%20Developer&"
+    "location=Bengaluru&geoId=105214831&distance=50&f_JT=I&f_PP=105214831&f_TPR=&"
+    "position=1&pageNum=0"
+)
+
+# Initialize WebDriver using the updated service
+driver = webdriver.Chrome(service=service, options=chrome_options)
 driver.implicitly_wait(10)
-driver.get(url1)
-from selenium.webdriver.common.by import By
+driver.get(url)
 
-y = driver.find_elements(By.CLASS_NAME, 'results-context-header__job-count')[0].text
-n =pd.to_numeric(y)
+# Allow extra time for dynamic content to load
+time.sleep(5)
 
-# Scrolling logic
-i = 2
-while i <= 5:
-    # for scrolling the window (automatically)
+# Scroll and load more jobs by clicking the "See more jobs" button multiple times
+for _ in range(5):
     driver.execute_script("window.scrollTo(0, document.body.scrollHeight);")
-    i = i + 1
-    # in case of finds the button see more jobs appears, for clicking it 
+    time.sleep(3)
     try:
-        #in case of finds the button called See more jobs
-        x = driver.find_element(By.XPATH, "//button[@aria-label='See more jobs']")
-        driver.execute_script("arguments[0].click();",x)
+        see_more_button = driver.find_element(By.XPATH, "//button[@aria-label='See more jobs']")
+        driver.execute_script("arguments[0].click();", see_more_button)
         time.sleep(3)
-    # in case of doesn't find the button 
-    except:
+    except Exception:
+        # Button may not appear every time—ignore if not found.
         pass
-        time.sleep(4)
+
+# Wait until the job cards are loaded
+WebDriverWait(driver, 20).until(
+    EC.presence_of_element_located((By.CSS_SELECTOR, "div.base-search-card"))
+)
+
+# Initialize lists for job details.
+company_names = []
+job_titles   = []
+job_links    = []
+
+# Iterate over each job card and extract details.
+job_cards = driver.find_elements(By.CSS_SELECTOR, "div.base-search-card")
+for card in job_cards:
+    # Extract job title
+    try:
+        title_elem = card.find_element(By.CSS_SELECTOR, ".base-search-card__title")
+        title = title_elem.get_attribute("innerText").strip()
+    except Exception:
+        title = "N/A"
     
-company_name= []
-for j in range(n):
+    # Extract company name
     try:
-        company = driver.find_elements(By.CLASS_NAME,"base-search-card__subtitle")[j].text
-        company_name.append(company)
-    except IndexError:
-        pass
-title_name = [] 
-for j in range(n):
+        company_elem = card.find_element(By.CSS_SELECTOR, ".base-search-card__subtitle")
+        company = company_elem.get_attribute("innerText").strip()
+    except Exception:
+        company = "N/A"
+    
+    # Extract job link
     try:
-        title = company = driver.find_elements(By.CLASS_NAME,"base-search-card__title")[j].text
-        title_name.append(title)
-    except IndexError:
-        pass
+        link_elem = card.find_element(By.CSS_SELECTOR, "a.base-card__full-link")
+        link = link_elem.get_attribute("href")
+    except Exception:
+        link = "N/A"
+    
+    job_titles.append(title)
+    company_names.append(company)
+    job_links.append(link)
 
-link_list = []
-find_link = driver.find_elements(By.CLASS_NAME,"base-card__full-link")
-for k in find_link:
-    link_list.append(k.get_attribute('href'))
+# Align the lists to the length of the shortest one
+min_length = min(len(company_names), len(job_titles), len(job_links))
+company_names = company_names[:min_length]
+job_titles   = job_titles[:min_length]
+job_links    = job_links[:min_length]
 
-# Creating CSV files
-company_final = pd.DataFrame(company_name,columns=['Company'])
-title_final = pd.DataFrame(title_name,columns=['Title'])
-link_final = pd.DataFrame(link_list,columns=['Links'])
-final = company_final.join([title_final,link_final])
-final.to_csv("internshipjobs.csv")
+# Save the scraped data to a CSV file
+job_data = pd.DataFrame({
+    "Company": company_names,
+    "Title": job_titles,
+    "Links": job_links
+})
+job_data.to_csv("internshipjobs_updated.csv", index=False)
+
+print(f"Scraping completed! {min_length} job postings saved to internshipjobs_updated.csv.")
+driver.quit()

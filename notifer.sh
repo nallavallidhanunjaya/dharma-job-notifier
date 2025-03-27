@@ -30,7 +30,7 @@ python3 -m pip install selenium pandas webdriver-manager --break-system-packages
 # Replace the following URL with your repository's URL.
 REPO_URL="https://github.com/nallavallidhanunjaya/dharma-job-notifier.git"
 # The expected repository directory (update if needed)
-REPO_DIR="job-notifier"
+REPO_DIR="dharma-job-notifier"
 
 if [ -d "$REPO_DIR" ]; then
     echo "Repository already exists. Pulling the latest changes..."

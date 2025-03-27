@@ -70,4 +70,4 @@ company_final = pd.DataFrame(company_name,columns=['Company'])
 title_final = pd.DataFrame(title_name,columns=['Title'])
 link_final = pd.DataFrame(link_list,columns=['Links'])
 final = company_final.join([title_final,link_final])
-final
+final.to_csv("internshipjobs.csv")
